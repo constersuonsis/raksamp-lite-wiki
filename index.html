@@ -1,0 +1,1588 @@
+<script type="text/javascript">
+    var gk_isXlsx = false;
+    var gk_xlsxFileLookup = {};
+    var gk_fileData = {};
+    function filledCell(cell) {
+        return cell !== '' && cell != null;
+    }
+    function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                    row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                    headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+    }
+</script>
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RakSAMP Lite Lua API - Документация</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        pre {
+            background-color: #1a202c;
+            color: #e2e8f0;
+            padding: 16px;
+            border-radius: 8px;
+            overflow-x: auto;
+        }
+
+        code {
+            font-family: 'Fira Code', monospace;
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+
+        th,
+        td {
+            border: 1px solid #e2e8f0;
+            padding: 12px;
+            text-align: left;
+        }
+
+        th {
+            background-color: #2d3748;
+            color: white;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f7fafc;
+        }
+
+        .sidebar {
+            position: sticky;
+            top: 20px;
+            height: fit-content;
+        }
+
+        .anchor {
+            scroll-margin-top: 80px;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-100 text-gray-800">
+    <header class="bg-indigo-600 text-white py-6">
+        <div class="container mx-auto px-4">
+            <h1 class="text-3xl font-bold">RakSAMP Lite | Lua API</h1>
+            <p class="mt-2 text-lg">Документация по минималистичному фейк-клиенту с расширенным функционалом через Lua
+                API</p>
+        </div>
+    </header>
+
+    <div class="container mx-auto px-4 py-8 flex flex-col lg:flex-row gap-8">
+        <!-- Sidebar -->
+        <aside class="sidebar lg:w-1/4">
+            <nav class="bg-white p-6 rounded-lg shadow-lg">
+                <h2 class="text-xl font-semibold mb-4">Навигация</h2>
+                <ul class="space-y-2">
+                    <li><a href="#introduction" class="text-indigo-600 hover:underline">Введение</a></li>
+                    <li><a href="#general-functions" class="text-indigo-600 hover:underline">Основные функции</a></li>
+                    <li><a href="#getter-functions" class="text-indigo-600 hover:underline">Функции получения данных</a>
+                    </li>
+                    <li><a href="#data-structures" class="text-indigo-600 hover:underline">Структуры данных</a></li>
+                    <li><a href="#rates" class="text-indigo-600 hover:underline">Рейты</a></li>
+                    <li><a href="#events" class="text-indigo-600 hover:underline">События</a></li>
+                    <li><a href="#bitstream" class="text-indigo-600 hover:underline">Операции с BitStream</a></li>
+                    <li><a href="#addon" class="text-indigo-600 hover:underline">Функции аддона</a></li>
+                    <li><a href="#tasks" class="text-indigo-600 hover:underline">Управление задачами</a></li>
+                    <!-- <li><a href="#samp-events" class="text-indigo-600 hover:underline">SAMP-события</a></li> -->
+                    <li><a href="#http" class="text-indigo-600 hover:underline">HTTP-запросы</a></li>
+                    <li><a href="#keys" class="text-indigo-600 hover:underline">Обработка клавиш</a></li>
+                    <li><a href="#proxy" class="text-indigo-600 hover:underline">Поддержка прокси</a></li>
+                    <!-- <li><a href="#fixes" class="text-indigo-600 hover:underline">Фиксы и функции</a></li> -->
+                    <li><a href="#commands" class="text-indigo-600 hover:underline">Команды</a></li>
+                </ul>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="lg:w-3/4">
+            <section id="introduction" class="anchor mb-8">
+                <h2 class="text-2xl font-semibold mb-4">Введение</h2>
+                <p class="mb-4">
+                    <a href="https://www.blast.hk/threads/108052/" class="mb-4">
+                        Кликабельный текст на скачивание RakSAMP Lite (кликабельный текст)
+                    </a>
+                </p>
+                <p class="mb-4">
+                    Raksamp — это минималистичный фейк-клиент для SA:MP, предоставляющий мощный Lua API для создания
+                    ботов, автоматизации действий и взаимодействия с игровым сервером. API позволяет управлять
+                    поведением бота, обрабатывать сетевые события и расширять функционал через скрипты.
+                </p>
+                <p>
+                    Эта документация подробно описывает все функции, события и структуры данных, доступные в Lua API, с
+                    примерами и рекомендациями по использованию.
+                </p>
+            </section>
+
+            <section id="general-functions" class="anchor mb-8">
+                <h2 class="text-2xl font-semibold mb-4">Основные функции</h2>
+                <p class="mb-4">Эти функции управляют поведением бота и настройками клиента.</p>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Функция</th>
+                            <th>Описание</th>
+                            <th>Параметры</th>
+                            <th>Пример</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>print(string text)</code></td>
+                            <td>Выводит сообщение в консоль.</td>
+                            <td><code>text</code>: Текст сообщения.</td>
+                            <td><code>print("Привет, мир!")</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>sleep(int ms)</code></td>
+                            <td>Приостанавливает программу на указанное время (блокирует всю программу).</td>
+                            <td><code>ms</code>: Длительность в миллисекундах.</td>
+                            <td><code>sleep(1000)</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>exit()</code></td>
+                            <td>Завершает программу, отключаясь от сервера и выгружая скрипты.</td>
+                            <td>Нет</td>
+                            <td><code>exit()</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>setServerAddress(string address)</code></td>
+                            <td>Устанавливает адрес сервера для подключения.</td>
+                            <td><code>address</code>: IP и порт сервера (например, "127.0.0.1:7777").</td>
+                            <td><code>setServerAddress("127.0.0.1:7777")</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>setBotNick(string nick)</code></td>
+                            <td>Устанавливает ник бота.</td>
+                            <td><code>nick</code>: Строка ника.</td>
+                            <td><code>setBotNick("Bot1")</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>setBotPosition(float x, float y, float z)</code></td>
+                            <td>Устанавливает позицию бота в игровом мире.</td>
+                            <td><code>x, y, z</code>: Координаты.</td>
+                            <td><code>setBotPosition(100.0, 200.0, 10.0)</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>setBotQuaternion(float w, float x, float y, float z)</code></td>
+                            <td>Устанавливает кватернион бота для ориентации.</td>
+                            <td><code>w, x, y, z</code>: Компоненты кватерниона.</td>
+                            <td><code>setBotQuaternion(1.0, 0.0, 0.0, 0.0)</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>setBotRotation(float angle)</code></td>
+                            <td>Устанавливает угол поворота бота.</td>
+                            <td><code>angle</code>: Угол в градусах.</td>
+                            <td><code>setBotRotation(90.0)</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>setBotHealth(float health)</code></td>
+                            <td>Устанавливает здоровье бота.</td>
+                            <td><code>health</code>: Значение здоровья (0-100).</td>
+                            <td><code>setBotHealth(100.0)</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>setBotArmor(float armor)</code></td>
+                            <td>Устанавливает броню бота.</td>
+                            <td><code>armor</code>: Значение брони (0-100).</td>
+                            <td><code>setBotArmor(50.0)</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>setNetworkAdapter(string ip)</code></td>
+                            <td>Устанавливает IP сетевого адаптера.</td>
+                            <td><code>ip</code>: IP-адрес.</td>
+                            <td><code>setNetworkAdapter("192.168.1.1")</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>setWindowTitle(string title)</code></td>
+                            <td>Устанавливает заголовок окна программы.</td>
+                            <td><code>title</code>: Заголовок окна.</td>
+                            <td><code>setWindowTitle("Raksamp Bot")</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>lockWindowTitle(bool lock)</code></td>
+                            <td>Блокирует/разблокирует изменение заголовка окна.</td>
+                            <td><code>lock</code>: True для блокировки, false для разблокировки.</td>
+                            <td><code>lockWindowTitle(true)</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>setWindowText(string text)</code></td>
+                            <td>Устанавливает текст в строке состояния над чатом (GUI).</td>
+                            <td><code>text</code>: Текст состояния.</td>
+                            <td><code>setWindowText("Готов")</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>lockWindowText(bool lock)</code></td>
+                            <td>Блокирует/разблокирует изменение строки состояния.</td>
+                            <td><code>lock</code>: True для блокировки, false для разблокировки.</td>
+                            <td><code>lockWindowText(true)</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>flashWindow()</code></td>
+                            <td>Заставляет окно программы мигать.</td>
+                            <td>Нет</td>
+                            <td><code>flashWindow()</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>showWindow()</code></td>
+                            <td>Разворачивает окно программы.</td>
+                            <td>Нет</td>
+                            <td><code>showWindow()</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>setRate(int rate, int value)</code></td>
+                            <td>Устанавливает рейты для операций клиента (см. <a href="#rates">Рейты</a>).</td>
+                            <td><code>rate</code>: Тип рейта (0-8), <code>value</code>: Значение рейта.</td>
+                            <td><code>setRate(RATE_LUA, 100)</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>runCommand(string cmd)</code></td>
+                            <td>Обрабатывает команду Raksamp.</td>
+                            <td><code>cmd</code>: Строка команды.</td>
+                            <td><code>runCommand("!spawn")</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>reconnect(int ms)</code></td>
+                            <td>Переподключается к серверу с опциональной задержкой.</td>
+                            <td><code>ms</code>: Задержка в миллисекундах (опционально).</td>
+                            <td><code>reconnect(5000)</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>spawn()</code></td>
+                            <td>Заспавнивает бота.</td>
+                            <td>Нет</td>
+                            <td><code>spawn()</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>updateSync()</code></td>
+                            <td>Обновляет синхронизацию бота с сервером.</td>
+                            <td>Нет</td>
+                            <td><code>updateSync()</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>resetConnectTimeout()</code></td>
+                            <td>Сбрасывает таймер переподключения.</td>
+                            <td>Нет</td>
+                            <td><code>resetConnectTimeout()</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>setBotVehicle(int id, int seat = 0)</code></td>
+                            <td>Назначает боту транспортное средство.</td>
+                            <td><code>id</code>: ID транспорта (0 для отсутствия), <code>seat</code>: ID места (0 для
+                                водительского).</td>
+                            <td><code>setBotVehicle(400, 0)</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>coordStart(float x, float y, float z, int delay, float step, bool off_at_spawn)</code>
+                            </td>
+                            <td>Запускает движение по координатам (путь).</td>
+                            <td><code>x, y, z</code>: Целевые координаты, <code>delay</code>: Задержка в мс,
+                                <code>step</code>: Шаг движения, <code>off_at_spawn</code>: Отключить при спавне.</td>
+                            <td><code>coordStart(100.0, 200.0, 10.0, 1000, 1.0, true)</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>coordStop()</code></td>
+                            <td>Останавливает движение по координатам.</td>
+                            <td>Нет</td>
+                            <td><code>coordStop()</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>setLogPath(string path)</code></td>
+                            <td>Устанавливает путь к файлу лога.</td>
+                            <td><code>path</code>: Путь к файлу.</td>
+                            <td><code>setLogPath("logs/bot.log")</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>setAutoPick(bool state)</code></td>
+                            <td>Включает/выключает автоматический сбор пикапов.</td>
+                            <td><code>state</code>: True для включения, false для выключения.</td>
+                            <td><code>setAutoPick(true)</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>proxyConnect(string address, string username, string password)</code></td>
+                            <td>Подключается к прокси-серверу.</td>
+                            <td><code>address</code>: Адрес прокси, <code>username</code>, <code>password</code>:
+                                Опциональные учетные данные.</td>
+                            <td><code>proxyConnect("123.145.167.189:58765", "user", "pass")</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>proxyDisconnect()</code></td>
+                            <td>Отключается от прокси.</td>
+                            <td>Нет</td>
+                            <td><code>proxyDisconnect()</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>setBotMoney(int money)</code></td>
+                            <td>Устанавливает количество денег бота.</td>
+                            <td><code>money</code>: Количество денег.</td>
+                            <td><code>setBotMoney(1000)</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>registerHandler(string event, function handler)</code></td>
+                            <td>Регистрирует обработчик события.</td>
+                            <td><code>event</code>: Имя события, <code>handler</code>: Функция-обработчик.</td>
+                            <td><code>registerHandler("onConnect", function() print("Подключено") end)</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>destroyHandlers()</code></td>
+                            <td>Удаляет все обработчики событий скрипта.</td>
+                            <td>Нет</td>
+                            <td><code>destroyHandlers()</code></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <section id="getter-functions" class="anchor mb-8">
+                <h2 class="text-2xl font-semibold mb-4">Функции получения данных</h2>
+                <p class="mb-4">Эти функции возвращают информацию о боте, сервере или состоянии игры.</p>
+                <p class="mb-4">* не вернет ничего, если не существует</p>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Функция</th>
+                            <th>Описание</th>
+                            <th>Возвращаемое значение</th>
+                            <th>Пример</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>getBotId()</code></td>
+                            <td>Получает ID бота.</td>
+                            <td><code>int</code>: ID бота.</td>
+                            <td><code>local id = getBotId()</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>getServerAddress()</code></td>
+                            <td>Получает адрес сервера.</td>
+                            <td><code>string</code>: IP и порт сервера.</td>
+                            <td><code>local ip = getServerAddress()</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>getServerName()</code></td>
+                            <td>Получает название сервера.</td>
+                            <td><code>string</code>: Название сервера.</td>
+                            <td><code>local name = getServerName()</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>getBotNick()</code></td>
+                            <td>Получает ник бота.</td>
+                            <td><code>string</code>: Ник.</td>
+                            <td><code>local nick = getBotNick()</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>getBotScore()</code></td>
+                            <td>Получает очки (уровень) бота.</td>
+                            <td><code>int</code>: Очки.</td>
+                            <td><code>local score = getBotScore()</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>getBotPing()</code></td>
+                            <td>Получает пинг бота.</td>
+                            <td><code>int</code>: П <code>Пинг в мс.</code></td>
+                            <td><code>local ping = getBotPing()</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>isBotSpawned()</code></td>
+                            <td>Проверяет, заспавнен ли бот.</td>
+                            <td><code>bool</code>: True, если заспавнен.</td>
+                            <td><code>local spawned = isBotSpawned()</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>getBotInterior()</code></td>
+                            <td>Получает ID интерьера бота.</td>
+                            <td><code>int</code>: ID интерьера.</td>
+                            <td><code>local interior = getBotInterior()</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>getBotSkin()</code></td>
+                            <td>Получает ID скина бота.</td>
+                            <td><code>int</code>: ID скина.</td>
+                            <td><code>local skin = getBotSkin()</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>getBotPosition()</code></td>
+                            <td>Получает позицию бота.</td>
+                            <td><code>float x, float y, float z</code>: Координаты.</td>
+                            <td><code>local x, y, z = getBotPosition()</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>getBotQuaternion()</code></td>
+                            <td>Получает кватернион бота.</td>
+                            <td><code>float w, float x, float y, float z</code>: Компоненты кватерниона.</td>
+                            <td><code>local w, x, y, z = getBotQuaternion()</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>getBotRotation()</code></td>
+                            <td>Получает угол поворота бота.</td>
+                            <td><code>float</code>: Угол в градусах.</td>
+                            <td><code>local angle = getBotRotation()</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>getBotHealth()</code></td>
+                            <td>Получает здоровье бота.</td>
+                            <td><code>float</code>: Значение здоровья.</td>
+                            <td><code>local health = getBotHealth()</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>getBotArmor()</code></td>
+                            <td>Получает броню бота.</td>
+                            <td><code>float</code>: Значение брони.</td>
+                            <td><code>local armor = getBotArmor()</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>getNetworkAdapter()</code></td>
+                            <td>Получает IP сетевого адаптера.</td>
+                            <td><code>string</code>: IP-адрес.</td>
+                            <td><code>local ip = getNetworkAdapter()</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>getCommandLineArgs()</code></td>
+                            <td>Получает аргументы командной строки.</td>
+                            <td><code>string</code>: Аргументы.</td>
+                            <td><code>local args = getCommandLineArgs()</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>isBotConnected()</code></td>
+                            <td>Проверяет, подключен ли бот к серверу.</td>
+                            <td><code>bool</code>: True, если подключен.</td>
+                            <td><code>local connected = isBotConnected()</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>getBotVehicle()</code></td>
+                            <td>Получает ID транспорта бота.</td>
+                            <td><code>int</code>: ID транспорта (0, если отсутствует).</td>
+                            <td><code>local vehicle = getBotVehicle()</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>isCoordActive()</code></td>
+                            <td>Проверяет, активно ли движение по координатам.</td>
+                            <td><code>bool</code>: True, если активно.</td>
+                            <td><code>local active = isCoordActive()</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>getPath(string additional)</code></td>
+                            <td>Получает корневой путь программы с опциональным суффиксом.</td>
+                            <td><code>string</code>: Путь.</td>
+                            <td><code>local path = getPath("scripts")</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>isProxyConnected()</code></td>
+                            <td>Проверяет, подключен ли бот к прокси.</td>
+                            <td><code>bool</code>: True, если подключен.</td>
+                            <td><code>local connected = isProxyConnected()</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>getBotMoney()</code></td>
+                            <td>Получает количество денег бота.</td>
+                            <td><code>int</code>: Количество денег.</td>
+                            <td><code>local money = getBotMoney()</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>getPlayerCount(bool stream = false)</code></td>
+                            <td>Получает количество игроков.</td>
+                            <td><code>int</code>: Количество игроков.</td>
+                            <td><code>local count = getPlayerCount()</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>isPlayerConnected(int id)</code></td>
+                            <td>Проверяет, подключен ли игрок.</td>
+                            <td><code>bool</code>: True, если подключен.</td>
+                            <td><code>local connected = isPlayerConnected(1)</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>doesPlayerExist(int id)</code></td>
+                            <td>Проверяет, существует ли игрок.</td>
+                            <td><code>bool</code>: True, если существует.</td>
+                            <td><code>local exist = doesPlayerExist(1)</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>doesVehicleExist(int id)</code></td>
+                            <td>Проверяет, существует ли транспорт.</td>
+                            <td><code>bool</code>: True, если существует.</td>
+                            <td><code>local exist = doesVehicleExist(400)</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>doesPickupExist(int id)</code></td>
+                            <td>Проверяет, существует ли пикап.</td>
+                            <td><code>bool</code>: True, если существует.</td>
+                            <td><code>local exist = doesPickupExist(1)</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>doesLabelExist(int id)</code></td>
+                            <td>Проверяет, существует ли 3D-текст.</td>
+                            <td><code>bool</code>: True, если существует.</td>
+                            <td><code>local exist = doesLabelExist(1)</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>getAllPlayers()</code></td>
+                            <td>Получает данные всех игроков.</td>
+                            <td><code>table</code>: Данные игроков (см. <a href="#data-structures">Структуры
+                                    данных</a>).</td>
+                            <td><code>local players = getAllPlayers()</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>getAllVehicles()</code></td>
+                            <td>Получает данные всех транспортных средств.</td>
+                            <td><code>table</code>: Данные транспорта.</td>
+                            <td><code>local vehicles = getAllVehicles()</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>getAllPickups()</code></td>
+                            <td>Получает данные всех пикапов.</td>
+                            <td><code>table</code>: Данные пикапов.</td>
+                            <td><code>local pickups = getAllPickups()</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>getAllLabels()</code></td>
+                            <td>Получает данные всех 3D-текстов.</td>
+                            <td><code>table</code>: Данные текстов.</td>
+                            <td><code>local labels = getAllLabels()</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>getPlayer(int id)</code></td>
+                            <td>Получает данные игрока.</td>
+                            <td><code>table</code>: Данные игрока или nil, если не подключен.</td>
+                            <td><code>local player = getPlayer(1)</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>getVehicle(int id)*</code></td>
+                            <td>Получает данные транспорта.</td>
+                            <td><code>table</code>: Данные транспорта или nil, если не существует.</td>
+                            <td><code>local vehicle = getVehicle(400)</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>getPickup(int id)*</code></td>
+                            <td>Получает данные пикапа.</td>
+                            <td><code>table</code>: Данные пикапа или nil, если не существует.</td>
+                            <td><code>local pickup = getPickup(1)</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>getLabel(int id)*</code></td>
+                            <td>Получает данные 3D-текста.</td>
+                            <td><code>table</code>: Данные текста или nil, если не существует.</td>
+                            <td><code>local label = getLabel(1)</code></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <section id="data-structures" class="anchor mb-8">
+                <h2 class="text-2xl font-semibold mb-4">Структуры данных</h2>
+                <p class="mb-4">Эти структуры возвращаются функциями, такими как <code>getAllPlayers()</code>,
+                    <code>getAllVehicles()</code> и т.д.</p>
+
+                <h3 class="text-xl font-semibold mb-2"><code>getAllPlayers()</code></h3>
+                <pre><code>{
+    [id] = {
+        score: int,      -- Очки игрока
+        ping: int,       -- Пинг игрока
+        nick: string,    -- Ник игрока
+        exist: bool,     -- Существует ли игрок
+        skin: int,       -- ID скина игрока
+        color: int,      -- Цвет игрока
+        position: table  -- {x: float, y: float, z: float}
+    },
+    ...
+}</code></pre>
+
+                <h3 class="text-xl font-semibold mb-2"><code>getAllVehicles()</code></h3>
+                <pre><code>{
+    [id] = {
+        health: float,   -- Здоровье транспорта
+        model: int,      -- ID модели транспорта
+        name: string,    -- Название транспорта
+        number: string,  -- Номерной знак
+        engine: bool,    -- Состояние двигателя
+        lights: bool,    -- Состояние фар
+        alarm: bool,     -- Состояние сигнализации
+        locked: bool,    -- Состояние замка
+        position: table  -- {x: float, y: float, z: float}
+    },
+    ...
+}</code></pre>
+
+                <h3 class="text-xl font-semibold mb-2"><code>getAllPickups()</code></h3>
+                <pre><code>{
+    [id] = {
+        model: int,      -- ID модели пикапа
+        type: int,       -- Тип пикапа
+        position: table  -- {x: float, y: float, z: float}
+    },
+    ...
+}</code></pre>
+
+                <h3 class="text-xl font-semibold mb-2"><code>getAllLabels()</code></h3>
+                <pre><code>{
+    [id] = {
+        distance: float,   -- Дистанция отрисовки
+        color: int,        -- Цвет текста
+        test_los: bool,    -- Проверка линии видимости
+        player_id: int,    -- ID привязанного игрока
+        vehicle_id: int,   -- ID привязанного транспорта
+        text: string,      -- Текст метки
+        position: table    -- {x: float, y: float, z: float}
+    },
+    ...
+}</code></pre>
+            </section>
+
+            <section id="rates" class="anchor mb-8">
+                <h2 class="text-2xl font-semibold mb-4">Рейты</h2>
+                <p class="mb-4">Рейты управляют частотой выполнения операций клиента. Используются с
+                    <code>setRate(rate, value)</code>.</p>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Рейт</th>
+                            <th>Описание</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>RATE_SLEEP</code></td>
+                            <td>Интервал ожидания.</td>
+                        </tr>
+                        <tr>
+                            <td><code>RATE_CONNECT</code></td>
+                            <td>Интервал попыток подключения.</td>
+                        </tr>
+                        <tr>
+                            <td><code>RATE_RECONNECT</code></td>
+                            <td>Интервал переподключения.</td>
+                        </tr>
+                        <tr>
+                            <td><code>RATE_NETWORK</code></td>
+                            <td>Интервал обновления сети.</td>
+                        </tr>
+                        <tr>
+                            <td><code>RATE_LUA</code></td>
+                            <td>Интервал обновления Lua (влияет на <code>onUpdate</code>).</td>
+                        </tr>
+                        <tr>
+                            <td><code>RATE_SPECTATE</code></td>
+                            <td>Интервал обновления наблюдения.</td>
+                        </tr>
+                        <tr>
+                            <td><code>RATE_ONFOOT</code></td>
+                            <td>Интервал синхронизации пешего режима.</td>
+                        </tr>
+                        <tr>
+                            <td><code>RATE_INCAR</code></td>
+                            <td>Интервал синхронизации в транспорте.</td>
+                        </tr>
+                        <tr>
+                            <td><code>RATE_AIM</code></td>
+                            <td>Интервал синхронизации прицеливания.</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <p class="mt-4">Пример:</p>
+                <pre><code>setRate(RATE_LUA, 100) -- onUpdate вызывается каждые 100 мс</code></pre>
+            </section>
+
+            <section id="events" class="anchor mb-8">
+                <h2 class="text-2xl font-semibold mb-4">События</h2>
+                <p class="mb-4">События вызываются при определённых действиях или состояниях. Обработчики можно
+                    регистрировать с помощью <code>registerHandler</code> или определять напрямую (например,
+                    <code>function onConnect()</code>).</p>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Событие</th>
+                            <th>Описание</th>
+                            <th>Параметры</th>
+                            <th>Поддерживает возврат</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>onLoad()</code></td>
+                            <td>Скрипт загружен.</td>
+                            <td>Нет</td>
+                            <td>Нет</td>
+                        </tr>
+                        <tr>
+                            <td><code>onUnload()</code></td>
+                            <td>Скрипт выгружен.</td>
+                            <td>Нет</td>
+                            <td>Нет</td>
+                        </tr>
+                        <tr>
+                            <td><code>onUpdate()</code></td>
+                            <td>Вызывается каждые N мс (настраивается через <code>RATE_LUA</code>).</td>
+                            <td>Нет</td>
+                            <td>Нет</td>
+                        </tr>
+                        <tr>
+                            <td><code>onRequestConnect()</code></td>
+                            <td>Запрос на подключение к серверу.</td>
+                            <td>Нет</td>
+                            <td><code>true/false</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>onConnect()</code></td>
+                            <td>Подключение к серверу.</td>
+                            <td>Нет</td>
+                            <td>Нет</td>
+                        </tr>
+                        <tr>
+                            <td><code>onDisconnect()</code></td>
+                            <td>Отключение от сервера.</td>
+                            <td>Нет</td>
+                            <td>Нет</td>
+                        </tr>
+                        <tr>
+                            <td><code>onProxyConnect()</code></td>
+                            <td>Подключение к прокси.</td>
+                            <td>Нет</td>
+                            <td>Нет</td>
+                        </tr>
+                        <tr>
+                            <td><code>onProxyDisconnect()</code></td>
+                            <td>Отключение от прокси.</td>
+                            <td>Нет</td>
+                            <td>Нет</td>
+                        </tr>
+                        <tr>
+                            <td><code>onProxyError()</code></td>
+                            <td>Ошибка подключения к прокси.</td>
+                            <td>Нет</td>
+                            <td>Нет</td>
+                        </tr>
+                        <tr>
+                            <td><code>onCoordStart()</code></td>
+                            <td>Начало движения по координатам.</td>
+                            <td>Нет</td>
+                            <td>Нет</td>
+                        </tr>
+                        <tr>
+                            <td><code>onCoordStop()</code></td>
+                            <td>Остановка движения по координатам.</td>
+                            <td>Нет</td>
+                            <td>Нет</td>
+                        </tr>
+                        <tr>
+                            <td><code>onRunCommand(string cmd)</code></td>
+                            <td>Выполнена клиентская команда.</td>
+                            <td><code>cmd</code>: Строка команды.</td>
+                            <td><code>true/false</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>onPrintLog(string text)</code></td>
+                            <td>Вывод сообщения в лог.</td>
+                            <td><code>text</code>: Текст лога.</td>
+                            <td><code>true/false</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>onSendPacket(id, bs)</code></td>
+                            <td>Отправлен пакет.</td>
+                            <td><code>id</code>: ID пакета, <code>bs</code>: BitStream.</td>
+                            <td><code>true/false</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>onReceivePacket(id, bs)</code></td>
+                            <td>Получен пакет.</td>
+                            <td><code>id</code>: ID пакета, <code>bs</code>: BitStream.</td>
+                            <td><code>true/false</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>onSendRPC(id, bs)</code></td>
+                            <td>Отправлен RPC.</td>
+                            <td><code>id</code>: ID RPC, <code>bs</code>: BitStream.</td>
+                            <td><code>true/false</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>onReceiveRPC(id, bs)</code></td>
+                            <td>Получен RPC.</td>
+                            <td><code>id</code>: ID RPC, <code>bs</code>: BitStream.</td>
+                            <td><code>true/false</code></td>
+                        </tr>
+                    </tbody>
+                </table>
+                <p class="mt-4">Пример:</p>
+                <pre><code>function onConnect()
+    print("Подключено к серверу!")
+end
+
+registerHandler("onDisconnect", function()
+    print("Отключено!")
+end)</code></pre>
+            </section>
+
+            <section id="bitstream" class="anchor mb-8">
+                <h2 class="text-2xl font-semibold mb-4">Операции с BitStream</h2>
+                <p class="mb-4">BitStream (<code>bs</code>) используется для работы с сетевыми пакетами.</p>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Метод</th>
+                            <th>Описание</th>
+                            <th>Параметры</th>
+                            <th>Возвращаемое значение</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>bitStream.new()</code></td>
+                            <td>Создаёт новый объект BitStream.</td>
+                            <td>Нет</td>
+                            <td><code>bitStream</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>bs:writeBool(bool value)</code></td>
+                            <td>Записывает булевое значение.</td>
+                            <td><code>value</code>: Булевое значение.</td>
+                            <td>Нет</td>
+                        </tr>
+                        <tr>
+                            <td><code>bs:writeInt8(int value)</code></td>
+                            <td>Записывает 8-битное целое число.</td>
+                            <td><code>value</code>: Целое число.</td>
+                            <td>Нет</td>
+                        </tr>
+                        <tr>
+                            <td><code>bs:writeUInt8(int value)</code></td>
+                            <td>Записывает беззнаковое 8-битное целое число.</td>
+                            <td><code>value</code>: Целое число.</td>
+                            <td>Нет</td>
+                        </tr>
+                        <tr>
+                            <td><code>bs:writeInt16(int value)</code></td>
+                            <td>Записывает 16-битное целое число.</td>
+                            <td><code>value</code>: Целое число.</td>
+                            <td>Нет</td>
+                        </tr>
+                        <tr>
+                            <td><code>bs:writeUInt16(int value)</code></td>
+                            <td>Записывает беззнаковое 16-битное целое число.</td>
+                            <td><code>value</code>: Целое число.</td>
+                            <td>Нет</td>
+                        </tr>
+                        <tr>
+                            <td><code>bs:writeInt32(int value)</code></td>
+                            <td>Записывает 32-битное целое число.</td>
+                            <td><code>value</code>: Целое число.</td>
+                            <td>Нет</td>
+                        </tr>
+                        <tr>
+                            <td><code>bs:writeUInt32(int value)</code></td>
+                            <td>Записывает беззнаковое 32-битное целое число.</td>
+                            <td><code>value</code>: Целое число.</td>
+                            <td>Нет</td>
+                        </tr>
+                        <tr>
+                            <td><code>bs:writeFloat(float value)</code></td>
+                            <td>Записывает число с плавающей точкой.</td>
+                            <td><code>value</code>: Число с плавающей точкой.</td>
+                            <td>Нет</td>
+                        </tr>
+                        <tr>
+                            <td><code>bs:writeString(string value)</code></td>
+                            <td>Записывает строку.</td>
+                            <td><code>value</code>: Строка.</td>
+                            <td>Нет</td>
+                        </tr>
+                        <tr>
+                            <td><code>bs:writeEncoded(string value)</code></td>
+                            <td>Записывает закодированную строку.</td>
+                            <td><code>value</code>: Строка.</td>
+                            <td>Нет</td>
+                        </tr>
+                        <tr>
+                            <td><code>bs:writeBitStream(bitStream bs)</code></td>
+                            <td>Записывает другой BitStream.</td>
+                            <td><code>bs</code>: Объект BitStream.</td>
+                            <td>Нет</td>
+                        </tr>
+                        <tr>
+                            <td><code>bs:resetWritePointer()</code></td>
+                            <td>Сбрасывает указатель записи.</td>
+                            <td>Нет</td>
+                            <td>Нет</td>
+                        </tr>
+                        <tr>
+                            <td><code>bs:resetReadPointer()</code></td>
+                            <td>Сбрасывает указатель чтения.</td>
+                            <td>Нет</td>
+                            <td>Нет</td>
+                        </tr>
+                        <tr>
+                            <td><code>bs:setWriteOffset(int offset)</code></td>
+                            <td>Устанавливает смещение записи.</td>
+                            <td><code>offset</code>: Смещение в битах.</td>
+                            <td>Нет</td>
+                        </tr>
+                        <tr>
+                            <td><code>bs:setReadOffset(int offset)</code></td>
+                            <td>Устанавливает смещение чтения.</td>
+                            <td><code>offset</code>: Смещение в битах.</td>
+                            <td>Нет</td>
+                        </tr>
+                        <tr>
+                            <td><code>bs:writeBuffer(int bitStreamPtr, int size)</code></td>
+                            <td>Записывает буфер.</td>
+                            <td><code>bitStreamPtr</code>: Указатель, <code>size</code>: Размер в байтах.</td>
+                            <td>Нет</td>
+                        </tr>
+                        <tr>
+                            <td><code>bs:ignoreBits(int value)</code></td>
+                            <td>Игнорирует биты.</td>
+                            <td><code>value</code>: Количество битов.</td>
+                            <td>Нет</td>
+                        </tr>
+                        <tr>
+                            <td><code>bs:ignoreBytes(int value)</code></td>
+                            <td>Игнорирует байты.</td>
+                            <td><code>value</code>: Количество байтов.</td>
+                            <td>Нет</td>
+                        </tr>
+                        <tr>
+                            <td><code>bs:reset()</code></td>
+                            <td>Сбрасывает BitStream.</td>
+                            <td>Нет</td>
+                            <td>Нет</td>
+                        </tr>
+                        <tr>
+                            <td><code>bs:readBool()</code></td>
+                            <td>Читает булевое значение.</td>
+                            <td>Нет</td>
+                            <td><code>bool</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>bs:readInt8()</code></td>
+                            <td>Читает 8-битное целое число.</td>
+                            <td>Нет</td>
+                            <td><code>int</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>bs:readUInt8()</code></td>
+                            <td>Читает беззнаковое 8-битное целое число.</td>
+                            <td>Нет</td>
+                            <td><code>int</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>bs:readInt16()</code></td>
+                            <td>Читает 16-битное целое число.</td>
+                            <td>Нет</td>
+                            <td><code>int</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>bs:readUInt16()</code></td>
+                            <td>Читает беззнаковое 16-битное целое число.</td>
+                            <td>Нет</td>
+                            <td><code>int</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>bs:readInt32()</code></td>
+                            <td>Читает 32-битное целое число.</td>
+                            <td>Нет</td>
+                            <td><code>int</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>bs:readUInt32()</code></td>
+                            <td>Читает беззнаковое 32-битное целое число.</td>
+                            <td>Нет</td>
+                            <td><code>int</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>bs:readFloat()</code></td>
+                            <td>Читает число с плавающей точкой.</td>
+                            <td>Нет</td>
+                            <td><code>float</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>bs:readString(int length)</code></td>
+                            <td>Читает строку.</td>
+                            <td><code>length</code>: Длина строки.</td>
+                            <td><code>string</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>bs:readEncoded(int length)</code></td>
+                            <td>Читает закодированную строку.</td>
+                            <td><code>length</code>: Длина строки.</td>
+                            <td><code>string</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>bs:getBitStream()</code></td>
+                            <td>Получает объект BitStream.</td>
+                            <td>Нет</td>
+                            <td><code>bitStream</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>bs:getWriteOffset()</code></td>
+                            <td>Получает смещение записи.</td>
+                            <td>Нет</td>
+                            <td><code>int</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>bs:getReadOffset()</code></td>
+                            <td>Получает смещение чтения.</td>
+                            <td>Нет</td>
+                            <td><code>int</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>bs:readBuffer(int data_ptr, int size)</code></td>
+                            <td>Читает буфер.</td>
+                            <td><code>data_ptr</code>: Указатель, <code>size</code>: Размер в байтах.</td>
+                            <td><code>bool</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>bs:getNumberOfBitsUsed()</code></td>
+                            <td>Получает количество использованных битов.</td>
+                            <td>Нет</td>
+                            <td><code>int</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>bs:getNumberOfBytesUsed()</code></td>
+                            <td>Получает количество использованных байтов.</td>
+                            <td>Нет</td>
+                            <td><code>int</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>bs:getNumberOfUnreadBits()</code></td>
+                            <td>Получает количество непрочитанных битов.</td>
+                            <td>Нет</td>
+                            <td><code>int</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>bs:getNumberOfUnreadBytes()</code></td>
+                            <td>Получает количество непрочитанных байтов.</td>
+                            <td>Нет</td>
+                            <td><code>int</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>bs:getDataPtr()</code></td>
+                            <td>Получает указатель данных.</td>
+                            <td>Нет</td>
+                            <td><code>int</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>bs:getBitStreamPtr()</code></td>
+                            <td>Получает указатель BitStream.</td>
+                            <td>Нет</td>
+                            <td><code>int</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>bs:sendRPC(int id)</code></td>
+                            <td>Отправляет RPC.</td>
+                            <td><code>id</code>: ID RPC.</td>
+                            <td><code>bool</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>bs:sendPacket()</code></td>
+                            <td>Отправляет пакет.</td>
+                            <td>Нет</td>
+                            <td><code>bool</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>bs:sendRPCEx(int id, int priority, int reliability, int channel, bool timestamp)</code>
+                            </td>
+                            <td>Отправляет RPC с расширенными параметрами.</td>
+                            <td><code>id</code>: ID RPC, <code>priority</code>: Приоритет, <code>reliability</code>:
+                                Надёжность, <code>channel</code>: Канал, <code>timestamp</code>: Включить временную
+                                метку.</td>
+                            <td><code>bool</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>bs:sendPacketEx(int priority, int reliability, int channel)</code></td>
+                            <td>Отправляет пакет с расширенными параметрами.</td>
+                            <td><code>priority</code>: Приоритет, <code>reliability</code>: Надёжность,
+                                <code>channel</code>: Канал.</td>
+                            <td><code>bool</code></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+
+
+            <section id="addon" class="anchor mb-8">
+                <h2 class="text-2xl font-semibold mb-4">Функции аддона</h2>
+                <p class="mb-4">Библиотека <code>addon</code> предоставляет дополнительные функции. Подключается с
+                    помощью <code>require("addon")</code>.</p>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Функция</th>
+                            <th>Описание</th>
+                            <th>Параметры</th>
+                            <th>Возвращаемое значение</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>isBotInAnyVehicle()</code></td>
+                            <td>Проверяет, находится ли бот в транспорте.</td>
+                            <td>Нет</td>
+                            <td><code>bool</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>sendSpawnRequest()</code></td>
+                            <td>Отправляет запрос на спавн.</td>
+                            <td>Нет</td>
+                            <td>Нет</td>
+                        </tr>
+                        <tr>
+                            <td><code>sendDialogResponse(int id, int button, int list, string input)</code></td>
+                            <td>Отправляет ответ на диалог.</td>
+                            <td><code>id</code>: ID диалога, <code>button</code>: ID кнопки, <code>list</code>: Элемент
+                                списка, <code>input</code>: Введённый текст.</td>
+                            <td>Нет</td>
+                        </tr>
+                        <tr>
+                            <td><code>sendClickTextdraw(int id)</code></td>
+                            <td>Кликает по текстдраву.</td>
+                            <td><code>id</code>: ID текстдрава.</td>
+                            <td>Нет</td>
+                        </tr>
+                        <tr>
+                            <td><code>sendPickedUpPickup(int id)</code></td>
+                            <td>Поднимает пикап.</td>
+                            <td><code>id</code>: ID пикапа.</td>
+                            <td>Нет</td>
+                        </tr>
+                        <tr>
+                            <td><code>sendVehicleEnter(int id, bool passenger)</code></td>
+                            <td>Отправляет запрос на посадку в транспорт.</td>
+                            <td><code>id</code>: ID транспорта, <code>passenger</code>: True для пассажирского места.
+                            </td>
+                            <td>Нет</td>
+                        </tr>
+                        <tr>
+                            <td><code>sendVehicleExit(int id)</code></td>
+                            <td>Отправляет запрос на выход из транспорта.</td>
+                            <td><code>id</code>: ID транспорта.</td>
+                            <td>Нет</td>
+                        </tr>
+                        <tr>
+                            <td><code>sendTargetUpdate(int object, int vehicle, int player, int actor)</code></td>
+                            <td>Обновляет цель камеры.</td>
+                            <td><code>object, vehicle, player, actor</code>: ID целей.</td>
+                            <td>Нет</td>
+                        </tr>
+                        <tr>
+                            <td><code>sendInput(string text)</code></td>
+                            <td>Отправляет текст в чат (команда, если начинается с <code>/</code>).</td>
+                            <td><code>text</code>: Введённый текст.</td>
+                            <td>Нет</td>
+                        </tr>
+                        <tr>
+                            <td><code>bitStream:readString8()</code></td>
+                            <td>Читает строку с 8-битной длиной.</td>
+                            <td>Нет</td>
+                            <td><code>string</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>bitStream:writeString8(string value)</code></td>
+                            <td>Записывает строку с 8-битной длиной.</td>
+                            <td><code>value</code>: Строка.</td>
+                            <td>Нет</td>
+                        </tr>
+                        <tr>
+                            <td><code>bitStream:readBool8()</code></td>
+                            <td>Читает булевое значение как 8-битное.</td>
+                            <td>Нет</td>
+                            <td><code>bool</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>bitStream:writeBool8(bool value)</code></td>
+                            <td>Записывает булевое значение как 8-битное.</td>
+                            <td><code>value</code>: Булевое значение.</td>
+                            <td>Нет</td>
+                        </tr>
+                        <tr>
+                            <td><code>bitStream:writeArray(table value)</code></td>
+                            <td>Записывает массив байтов.</td>
+                            <td><code>value</code>: Таблица байтов.</td>
+                            <td>Нет</td>
+                        </tr>
+                        <tr>
+                            <td><code>bitStream:writeVector3(table value)</code></td>
+                            <td>Записывает 3D-вектор.</td>
+                            <td><code>value</code>: Таблица <code>{x, y, z}</code>.</td>
+                            <td>Нет</td>
+                        </tr>
+                        <tr>
+                            <td><code>bitStream:readVector3()</code></td>
+                            <td>Читает 3D-вектор.</td>
+                            <td>Нет</td>
+                            <td><code>table</code></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <section id="tasks" class="anchor mb-8">
+                <h2 class="text-2xl font-semibold mb-4">Управление задачами</h2>
+                <p class="mb-4">Задачи позволяют выполнять неблокирующий код с использованием корутин.</p>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Функция</th>
+                            <th>Описание</th>
+                            <th>Параметры</th>
+                            <th>Возвращаемое значение</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>newTask(function f, bool/int halted, ...)</code></td>
+                            <td>Создаёт задачу.</td>
+                            <td><code>f</code>: Функция, <code>halted</code>: True для паузы или задержка в мс,
+                                <code>...</code>: Аргументы функции.</td>
+                            <td><code>task</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>clearTasks()</code></td>
+                            <td>Завершает все задачи.</td>
+                            <td>Нет</td>
+                            <td>Нет</td>
+                        </tr>
+                        <tr>
+                            <td><code>wait(int time)</code></td>
+                            <td>Приостанавливает задачу на указанное время (только внутри задач).</td>
+                            <td><code>time</code>: Длительность в мс.</td>
+                            <td>Нет</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <h3 class="text-xl font-semibold mb-2">Методы задач</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Метод</th>
+                            <th>Описание</th>
+                            <th>Возвращаемое значение</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>task:halt()</code></td>
+                            <td>Приостанавливает задачу.</td>
+                            <td>Нет</td>
+                        </tr>
+                        <tr>
+                            <td><code>task:tick()</code></td>
+                            <td>Принудительно выполняет задачу.</td>
+                            <td>Нет</td>
+                        </tr>
+                        <tr>
+                            <td><code>task:resume()</code></td>
+                            <td>Возобновляет выполнение задачи.</td>
+                            <td>Нет</td>
+                        </tr>
+                        <tr>
+                            <td><code>task:kill()</code></td>
+                            <td>Завершает задачу.</td>
+                            <td>Нет</td>
+                        </tr>
+                        <tr>
+                            <td><code>task:isAlive()</code></td>
+                            <td>Проверяет, существует ли задача.</td>
+                            <td><code>bool</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>task:isHalted()</code></td>
+                            <td>Проверяет, приостановлена ли задача.</td>
+                            <td><code>bool</code></td>
+                        </tr>
+                    </tbody>
+                </table>
+                <p class="mt-4">Пример:</p>
+                <pre><code>newTask(function()
+    wait(1000)
+    print("Сообщение с задержкой")
+end)</code></pre>
+            </section>
+
+            <!-- <section id="samp-events" class="anchor mb-8">
+                <h2 class="text-2xl font-semibold mb-4">SAMP-события</h2>
+                <p class="mb-4">Библиотека <code>samp.events</code> обрабатывает события сервера. Подключается с помощью
+                    <code>require("samp.events")</code>.</p>
+                <table id="events-table">
+                    <thead>
+                        <tr>
+                            <th>Событие</th>
+                            <th>Описание</th>
+                            <th>Параметры</th>
+                        </tr>
+                    </thead>
+                    <tbody id="events-body">
+                         Таблица будет заполнена JavaScript -->
+                    <!-- </tbody>
+                </table>
+                <p class="mt-4">Пример:</p>
+                <pre><code>function sampev.onShowDialog(id, style, title, btn1, btn2, text)
+    if title:find("Авторизация") then
+        sendDialogResponse(id, 1, -1, "123456")
+        return false
+    end -->
+<!-- end</code></pre> -->
+            <!-- </section> -->
+            <!-- <script src="samp_events.js"></script> -->
+
+            <section id="http" class="anchor mb-8">
+                <h2 class="text-2xl font-semibold mb-4">HTTP-запросы</h2>
+                <p class="mb-4">Библиотека <code>requests</code> поддерживает синхронные и асинхронные HTTP-запросы.</p>
+                <h3 class="text-xl font-semibold mb-2">Синхронный запрос</h3>
+                <pre><code>local requests = require("requests")
+local response = requests.get("https://api.ipify.org")
+if response.status_code == 200 then
+    print(response.text)
+end</code></pre>
+                <h3 class="text-xl font-semibold mb-2">Асинхронный запрос (требуется <code>effil</code>)</h3>
+                <pre><code>local effil = require("effil")
+async_http_request.get("https://api.ipify.org",
+    function(response)
+        print(response.text)
+    end,
+    function(err)
+        print("Ошибка:", err)
+    end
+)</code></pre>
+
+                <h3 class="text-xl font-semibold mb-2">Код функции <code>async_http_request</code></h3>
+                <h3>Нужна библиотека отсюда: <a
+                        href="https://github.com/effil/effil/releases/download/v1.2-0/effil-v1.2-0-lua5.1-Win-x86.zip"
+                        class="text-indigo-600 hover:underline">GitHub</a></h3>
+                <pre><code>local effil = require 'effil'
+
+async_http_request = setmetatable({}, {
+    __index = function(_, method)
+        return function(url, args, resolve, reject)
+            local runner = effil.thread(function(method, url, args)
+                local requests = require 'requests'
+                local result, response = pcall(requests.request, method:upper(), url, args and effil.dump(args))
+                if result then
+                    response.json, response.xml = nil, nil
+                    return true, response
+                else
+                    return false, response
+                end
+            end)(method, url, args)
+            if not resolve then resolve = function() end end
+            if not reject then reject = function() end end
+            newTask(function()
+                while true do
+                    local status, err = runner:status()
+                    if err then
+                        return reject(err)
+                    elseif status == 'cancelled' then
+                        return reject(status)
+                    elseif status == 'completed' then
+                        local result, response = runner:get()
+                        if result then
+                            return resolve(response)
+                        end
+                        return reject(response)
+                    end
+                    wait(0)
+                end
+                end)
+        end
+    end
+})</code></pre>
+            </section>
+
+            <section id="keys" class="anchor mb-8">
+                <h2 class="text-2xl font-semibold mb-4">Обработка клавиш</h2>
+                <p class="mb-4">Клавиши отправляются через пакеты синхронизации. Используйте <code>sendKey</code> и
+                    <code>sendSpecialKey</code> для обычных и специальных клавиш (Y/N/H).</p>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Функция</th>
+                            <th>Описание</th>
+                            <th>Параметры</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>sendKey(id)</code></td>
+                            <td>Отправляет нажатие клавиши.</td>
+                            <td><code>id</code>: ID клавиши (например, 1024 для Alt).</td>
+                        </tr>
+                        <tr>
+                            <td><code>sendSpecialKey(id)</code></td>
+                            <td>Отправляет нажатие специальной клавиши.</td>
+                            <td><code>id</code>: ID специальной клавиши (1=Y, 2=N, 3=H).</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <p class="mt-4">Пример:</p>
+                <pre><code>local sampev = require("samp.events")
+
+-- обычные клавиши ( alt, f, лкм, ... )
+function sendKey(id)
+    key = id
+    updateSync() -- принудительно отправляем пакет синхронизации с кнопками
+end
+
+-- Y, N, H
+function sendSpecialKey(id)
+    skey = id
+    updateSync()
+end
+
+function onRunCommand(cmd)
+    if cmd:find("^!key %d+$") then
+        sendKey(tonumber(cmd:match("%d+")))
+        return false
+    elseif cmd:find("^!skey %d+$") then
+        sendSpecialKey(tonumber(cmd:match("%d+")))
+        return false
+    end
+end
+
+function sampev.onSendPlayerSync(data)
+    if key then
+        data.keysData = key -- в исходящей синхронизации подставляем свою кнопку
+        key = nil -- чистим, чтобы клавиша не была зажата
+    end
+    if skey then
+        data.specialKey = skey -- ( Y, N, H )
+        skey = nil
+    end
+end
+
+-- то же самое, что и в функции выше, только еще и для авто
+function sampev.onSendVehicleSync(data)
+    if key then
+        data.keysData = key
+        key = nil
+    end
+    if skey then
+        data.specialKey = skey
+        skey = nil
+    end
+end
+
+-- помимо этого, keysData и specialKey есть в PassengerSyncData. А в SpectatorSyncData только keysData
+-- см. libs/samp/synchronization.lua</code></pre>
+            </section>
+
+            <section id="proxy" class="anchor mb-8">
+                <h2 class="text-2xl font-semibold mb-4">Поддержка прокси</h2>
+                <p class="mb-4">Клиент поддерживает прокси SOCKS5 для смены IP.</p>
+                <pre><code>-- подключаемся к прокси после загрузки скрипта
+function onLoad()
+    proxyConnect("123.145.167.189:58765", "user", "pass")
+end
+
+-- чтоб не подключался к серверу без прокси
+function onRequestConnect()
+    if not isProxyConnected() then return false end
+end
+
+-- функция вызывается при ошибки
+function onProxyError()
+    print("ошибка при подключении к прокси")
+end
+
+-- функция вызывается при успешном подключении
+function onProxyConnect()
+    print("успешно подключились к прокси!")
+end</code></pre>
+            </section>
+
+            <!-- <section id="fixes" class="anchor mb-8">
+                <h2 class="text-2xl font-semibold mb-4">Фиксы и функции</h2>
+                <ul class="list-disc pl-6 mb-4">
+                    <li><strong>Фиксы</strong>: WeaponFix, Interpolate Camera Fix, ConnectFix, Connect Accepted Fix,
+                        HitFix, SendPing Fix, AimSync Fix, Slapfix.</li>
+                    <li><strong>Функции</strong>: Follow (липучка), Route Recording System.</li>
+                </ul>
+            </section> -->
+
+            <section id="commands" class="anchor mb-8">
+                <h2 class="text-2xl font-semibold mb-4">Команды</h2>
+                <p class="mb-4">Встроенные команды для управления клиентом.</p>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Команда</th>
+                            <th>Описание</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>!exit</code>/<code>!quit</code></td>
+                            <td>Выход из программы.</td>
+                        </tr>
+                        <tr>
+                            <td><code>!reconnect</code></td>
+                            <td>Переподключение к серверу.</td>
+                        </tr>
+                        <tr>
+                            <td><code>!reload</code></td>
+                            <td>Перезагрузка настроек.</td>
+                        </tr>
+                        <tr>
+                            <td><code>!players</code></td>
+                            <td>Вывод списка игроков.</td>
+                        </tr>
+                        <tr>
+                            <td><code>!npcs</code></td>
+                            <td>Вывод списка NPC.</td>
+                        </tr>
+                        <tr>
+                            <td><code>!vehicles</code></td>
+                            <td>Вывод списка транспорта.</td>
+                        </tr>
+                        <tr>
+                            <td><code>!pickups</code></td>
+                            <td>Вывод списка пикапов.</td>
+                        </tr>
+                        <tr>
+                            <td><code>!labels</code></td>
+                            <td>Вывод списка 3D-текстов.</td>
+                        </tr>
+                        <tr>
+                            <td><code>!goto &lt;id&gt;</code></td>
+                            <td>Телепортация к игроку.</td>
+                        </tr>
+                        <tr>
+                            <td><code>!gotocp</code></td>
+                            <td>Телепортация к чекпоинту.</td>
+                        </tr>
+                        <tr>
+                            <
